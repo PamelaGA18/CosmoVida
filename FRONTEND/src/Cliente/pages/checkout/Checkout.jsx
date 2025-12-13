@@ -5,7 +5,7 @@ import { useCallback } from "react";
 import { baseUrl } from "../../../environment";
 
 
-const stripePromise = loadStripe("sk_test_51RUheLQj0Dr03eMVi8bA99yUYERm7QQJvZa48td9JIeuPj7HukQtZWK8s25uzvlQzcaT2JG2HEBu86turllrfVGX00ZXNcYdH1");
+const stripePromise = loadStripe("pk_test_51RUheLQj0Dr03eMVBwAUYhPIbzHSW2H1NQ1cOjdah8UgP8xjmYerXLA1bAKDM3IRA1xDV9Ou7FLBHYC9ZvFMFmx300dplyYt5a");
 
 export default function Checkout() {
 
