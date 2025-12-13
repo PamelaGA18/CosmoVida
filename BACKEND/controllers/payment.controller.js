@@ -3,17 +3,53 @@ const Cart = require("../models/cart.model");
 const Order = require("../models/order.model");
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 
+// Función para validar URLs de imágenes
+const isValidImageUrl = (url) => {
+    if (!url || typeof url !== 'string') return false;
+    
+    try {
+        // Verificar si es una URL válida
+        const urlObj = new URL(url);
+        
+        // Stripe solo acepta HTTPS para imágenes
+        if (urlObj.protocol !== 'https:' && urlObj.protocol !== 'http:') {
+            return false;
+        }
+        
+        // Verificar extensión de imagen
+        const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+        const hasValidExtension = validExtensions.some(ext => 
+            url.toLowerCase().endsWith(ext)
+        );
+        
+        return hasValidExtension;
+    } catch (e) {
+        // No es una URL válida
+        return false;
+    }
+};
+
+// Función para construir URL completa de imagen
+const buildImageUrl = (imagePath) => {
+    if (!imagePath) return null;
+    
+    // Si ya es una URL completa
+    if (imagePath.startsWith('http')) {
+        // Asegurarnos de que sea HTTPS para producción
+        return imagePath.replace('http://', 'https://');
+    }
+    
+    // Si es una ruta relativa, construir URL completa
+    const BACKEND_URL = process.env.BACKEND_URL || 'https://cosmovida.onrender.com';
+    return `${BACKEND_URL}/uploads/${imagePath}`;
+};
+
 module.exports = {
     createCheckoutSession: async (req, res) => {
         try {
-            //  Usar FRONTEND_URL dinámica SIN {CHECKOUT_SESSION_ID}
-            const YOUR_DOMAIN = process.env.FRONTEND_URL || 'http://localhost:3000';
+            // URL del frontend
+            const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
             
-            // Asegurarnos de que la URL sea válida
-            if (!YOUR_DOMAIN.startsWith('http')) {
-                throw new Error(`URL inválida: ${YOUR_DOMAIN}`);
-            }
-
             const userId = req.user.id;
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
             
@@ -24,52 +60,97 @@ module.exports = {
                 }); 
             }
 
-            const lineItems = cart.products.map((x) => {
-                // Asegurarnos de que el precio sea un número válido
-                const unitAmount = Math.round(parseFloat(x.product.price) * 100);
+            const lineItems = cart.products.map((item, index) => {
+                const product = item.product;
+                
+                // Validar precio
+                const unitAmount = Math.round(parseFloat(product.price) * 100);
                 if (isNaN(unitAmount) || unitAmount <= 0) {
-                    throw new Error(`Precio inválido para producto: ${x.product.name}`);
+                    throw new Error(`Precio inválido para producto: ${product.name}`);
                 }
+
+                // Preparar imágenes para Stripe
+                const imagesForStripe = [];
+                
+                if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+                    // Tomar solo la primera imagen y validarla
+                    const firstImage = product.images[0];
+                    const imageUrl = buildImageUrl(firstImage);
+                    
+                    if (imageUrl && isValidImageUrl(imageUrl)) {
+                        imagesForStripe.push(imageUrl);
+                    }
+                }
+                
+                // Si no hay imágenes válidas, dejar el array vacío (Stripe lo acepta)
+                // O puedes usar una imagen por defecto:
+                // if (imagesForStripe.length === 0) {
+                //     imagesForStripe.push('https://via.placeholder.com/300x300?text=Producto');
+                // }
 
                 return {
                     price_data: {
                         currency: 'mxn',
                         unit_amount: unitAmount,
                         product_data: {
-                            name: x.product.name.substring(0, 100), // Stripe limita a 100 caracteres
-                            description: (x.product.short_desc || x.product.description || '').substring(0, 500),
-                            images: x.product.images && Array.isArray(x.product.images) && x.product.images.length > 0 
-                                ? [x.product.images[0]] // Solo primera imagen
-                                : [],
+                            name: product.name.substring(0, 100), // Stripe límite 100 chars
+                            description: (product.short_desc || product.description || 'Producto sin descripción')
+                                .substring(0, 500), // Stripe límite 500 chars
+                            images: imagesForStripe, // Array vacío si no hay imágenes válidas
+                            metadata: {
+                                productId: product._id.toString(),
+                                sku: product.sku || `SKU-${product._id}`
+                            }
                         }
                     },
-                    quantity: x.quantity
+                    quantity: item.quantity
                 };
             });
 
-            //  Para Embedded Checkout, NO usar {CHECKOUT_SESSION_ID} en return_url
+            // Verificar que hayamos creado line items válidos
+            if (lineItems.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "No se pudieron crear items válidos para el pago"
+                });
+            }
+
+            console.log(" Creando sesión con", lineItems.length, "items");
+
             const session = await stripe.checkout.sessions.create({
                 ui_mode: 'embedded',
                 line_items: lineItems,
                 mode: 'payment',
-                // IMPORTANTE: Para embedded, el return_url debe ser una URL simple
-                // Stripe manejará la redirección automáticamente
-                return_url: `${YOUR_DOMAIN}/return`,
+                return_url: `${FRONTEND_URL}/return`,
                 metadata: {
                     userId: userId.toString(),
                     cartId: cart._id.toString()
+                },
+                billing_address_collection: 'required',
+                shipping_address_collection: {
+                    allowed_countries: ['MX', 'US'] // Países permitidos
+                },
+                phone_number_collection: {
+                    enabled: true
+                },
+                custom_text: {
+                    shipping_address: {
+                        message: 'Ingresa tu dirección de envío'
+                    },
+                    submit: {
+                        message: 'Pagar ahora'
+                    }
                 }
             });
 
-            // Guardar sessionId en el carrito
+            // Guardar sessionId
             await Cart.findOneAndUpdate(
                 { user: userId },
                 { $set: { stripeSessionId: session.id } },
                 { new: true }
             );
 
-            console.log(" Session creada exitosamente:", session.id);
-            console.log(" Client Secret generado");
+            console.log(" Sesión Stripe creada:", session.id);
             
             res.json({ 
                 success: true, 
@@ -78,12 +159,19 @@ module.exports = {
             });
             
         } catch (error) {
-            console.error("❌ Error detallado en createCheckoutSession:", error);
+            console.error(" Error detallado en createCheckoutSession:", {
+                message: error.message,
+                type: error.type,
+                code: error.code,
+                param: error.param
+            });
+            
             res.status(500).json({ 
                 success: false, 
                 message: "Error creando sesión de pago",
                 error: error.message,
-                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+                stripeError: error.code,
+                param: error.param
             });
         }
     },
@@ -99,9 +187,10 @@ module.exports = {
                 });
             }
 
-            const session = await stripe.checkout.sessions.retrieve(sessionId);
+            const session = await stripe.checkout.sessions.retrieve(sessionId, {
+                expand: ['line_items.data.price.product']
+            });
             
-            // Obtener userId del metadata de la sesión
             const userId = session.metadata?.userId || req.query.user_id;
             
             if (!userId) {
@@ -121,31 +210,32 @@ module.exports = {
                 });
             }
 
-            // Verificar si la orden ya existe
-            const existingOrder = await Order.findOne({ paymentId: sessionId });
-            
-            if (!existingOrder && session.payment_status === 'paid') {
-                // Calcular total
-                const totalPrice = cart.products.reduce((sum, item) => 
-                    sum + (item.product.price * item.quantity), 0
-                );
-
-                // Crear nueva orden
-                const newOrder = new Order({ 
-                    user: userId, 
-                    products: cart.products, 
-                    totalPrice, 
-                    paymentId: sessionId, 
-                    paymentStatus: session.payment_status,
-                    customerEmail: session.customer_details?.email || '',
-                    shipping: session.shipping_details || {}
-                });
-                await newOrder.save();
-
-                // Limpiar carrito
-                await Cart.findOneAndDelete({ user: userId });
+            // Solo crear orden si el pago es exitoso
+            if (session.payment_status === 'paid') {
+                const existingOrder = await Order.findOne({ paymentId: sessionId });
                 
-                console.log(` Orden creada para usuario ${userId}, total: ${totalPrice}`);
+                if (!existingOrder) {
+                    const totalPrice = cart.products.reduce((sum, item) => 
+                        sum + (item.product.price * item.quantity), 0
+                    );
+
+                    const newOrder = new Order({ 
+                        user: userId, 
+                        products: cart.products, 
+                        totalPrice, 
+                        paymentId: sessionId, 
+                        paymentStatus: session.payment_status,
+                        customerEmail: session.customer_details?.email || '',
+                        shipping: session.shipping_details || {},
+                        billing: session.customer_details || {}
+                    });
+                    await newOrder.save();
+
+                    // Limpiar carrito
+                    await Cart.findOneAndDelete({ user: userId });
+                    
+                    console.log(` Orden ${newOrder._id} creada para usuario ${userId}`);
+                }
             }
 
             res.json({
