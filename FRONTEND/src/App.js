@@ -1,7 +1,6 @@
-
 import './App.css';
-import { Fragment, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Router } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ClienteModule from './Cliente/ClienteModule';
 import Home from './Cliente/pages/home/Home';
 import Products from './Cliente/pages/products/Products';
@@ -29,51 +28,46 @@ import { updateTotal } from './state/cartSlice';
 import PaymentReturn from './Cliente/pages/payment-return/PaymentReturn';
 import ProductDetails from './Cliente/pages/ProductDetails/ProductDetails';
 import Profile from './Cliente/pages/profile/Profile';
-import {Navigate } from 'react-router-dom';
 
 function App() {
-
   const dispatch = useDispatch();
 
-      const fetchCart = () => {
-          axios.get(`${baseUrl}/cart`).then(resp => {
-              console.log("cart response", resp.data.cart)
-              dispatch(updateTotal(resp.data.cart.products.length))
-          }).catch(e => {
-              console.log("Cart fetch error", e)
-          })
-      }
+  const fetchCart = () => {
+    axios.get(`${baseUrl}/cart`).then(resp => {
+      console.log("cart response", resp.data.cart);
+      dispatch(updateTotal(resp.data.cart.products.length));
+    }).catch(e => {
+      console.log("Cart fetch error", e);
+    });
+  };
 
-  
-
-  useEffect(()=>{
+  useEffect(() => {
     fetchCart();
 
-
-    const userDataStr = localStorage.getItem("userData")
-    if(userDataStr){
+    const userDataStr = localStorage.getItem("userData");
+    if (userDataStr) {
       const userData = JSON.parse(userDataStr);
-      if(userData.token && userData.role==='admin'){
-        dispatch(login({auth:true, admin:true}))
+      if (userData.token && userData.role === 'admin') {
+        dispatch(login({ auth: true, admin: true }));
       }
 
-      if(userData.token && userData.role==='user'){
-        dispatch(login({auth:true, admin:false}))
+      if (userData.token && userData.role === 'user') {
+        dispatch(login({ auth: true, admin: false }));
       }
     }
-  },[])
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
-
         <Route path="/admin" element={<PrivateAdminRoute><AdminModule /></PrivateAdminRoute>}>
-          <Route index element={<Dashboard/>} />
-          <Route path="products" element={<ProductsAdmin />} /> 
-          <Route path='users' element={<UsersAdmin/>} />
-          <Route path='orders' element={<OrdersAdmin/>} />
-          <Route path='order-details/:id' element={<OrderDetails/>} />
-          <Route path='category' element={<Category/>} />
-          <Route path='colors' element={<Colors/>} />
+          <Route index element={<Dashboard />} />
+          <Route path="products" element={<ProductsAdmin />} />
+          <Route path='users' element={<UsersAdmin />} />
+          <Route path='orders' element={<OrdersAdmin />} />
+          <Route path='order-details/:id' element={<OrderDetails />} />
+          <Route path='category' element={<Category />} />
+          <Route path='colors' element={<Colors />} />
         </Route>
 
         <Route path="/" element={<ClienteModule />}>
@@ -81,17 +75,17 @@ function App() {
           <Route path="products" element={<Products />} />
           <Route path="product-details/:id" element={<ProductDetails />} />
           <Route path="cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
-          <Route path="orders" element={<PrivateRoute><Orders/></PrivateRoute>} />
+          <Route path="orders" element={<PrivateRoute><Orders /></PrivateRoute>} />
           <Route path="order-details/:id" element={<OrderDetails />} />
           <Route path="login" element={<Login />} />
           <Route path="register" element={<Register />} />
-          <Route path='sign-out' element={<SignOut/>} />
-          <Route path='checkout' element={<Checkout/>}/>
+          <Route path='sign-out' element={<SignOut />} />
+          <Route path='checkout' element={<Checkout />} />
           <Route path="/payment-return" element={<PaymentReturn />} />
           <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
-          // Al FINAL de tus rutas en App.js, agrega:
+          
+          {/* Ruta catch-all para manejar 404s */}
           <Route path="*" element={<Navigate to="/" replace />} />
-          {/*<Route path="*" element={<NoPage />} /> */}
         </Route>
       </Routes>
     </BrowserRouter>
