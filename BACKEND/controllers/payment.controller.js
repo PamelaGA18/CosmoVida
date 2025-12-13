@@ -3,120 +3,70 @@ const Cart = require("../models/cart.model");
 const Order = require("../models/order.model");
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 
-// Función para validar URLs de imágenes
-const isValidImageUrl = (url) => {
-    if (!url || typeof url !== 'string') return false;
-    
-    try {
-        // Verificar si es una URL válida
-        const urlObj = new URL(url);
-        
-        // Stripe solo acepta HTTPS para imágenes
-        if (urlObj.protocol !== 'https:' && urlObj.protocol !== 'http:') {
-            return false;
-        }
-        
-        // Verificar extensión de imagen
-        const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-        const hasValidExtension = validExtensions.some(ext => 
-            url.toLowerCase().endsWith(ext)
-        );
-        
-        return hasValidExtension;
-    } catch (e) {
-        // No es una URL válida
-        return false;
-    }
-};
-
-// Función para construir URL completa de imagen
-const buildImageUrl = (imagePath) => {
-    if (!imagePath) return null;
-    
-    // Si ya es una URL completa
-    if (imagePath.startsWith('http')) {
-        // Asegurarnos de que sea HTTPS para producción
-        return imagePath.replace('http://', 'https://');
-    }
-    
-    // Si es una ruta relativa, construir URL completa
-    const BACKEND_URL = process.env.BACKEND_URL || 'https://cosmovida.onrender.com';
-    return `${BACKEND_URL}/uploads/${imagePath}`;
-};
-
 module.exports = {
     createCheckoutSession: async (req, res) => {
         try {
-            // URL del frontend
-            const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+            console.log("🛒 Iniciando creación de sesión de pago...");
             
+            const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
             const userId = req.user.id;
+            
+            console.log("👤 Usuario ID:", userId);
+            
+            // Buscar carrito
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
             
             if (!cart || cart.products.length === 0) { 
+                console.log("❌ Carrito vacío o no encontrado");
                 return res.status(404).json({ 
                     success: false, 
                     message: "Carrito vacío o no encontrado." 
                 }); 
             }
 
+            console.log("📦 Productos en carrito:", cart.products.length);
+
+            // Crear line items SIN imágenes para evitar errores
             const lineItems = cart.products.map((item, index) => {
                 const product = item.product;
                 
-                // Validar precio
-                const unitAmount = Math.round(parseFloat(product.price) * 100);
-                if (isNaN(unitAmount) || unitAmount <= 0) {
+                // Validar y convertir precio
+                const price = parseFloat(product.price);
+                if (isNaN(price) || price <= 0) {
+                    console.error(`⚠️ Precio inválido para producto ${product.name}: ${product.price}`);
                     throw new Error(`Precio inválido para producto: ${product.name}`);
                 }
-
-                // Preparar imágenes para Stripe
-                const imagesForStripe = [];
                 
-                if (product.images && Array.isArray(product.images) && product.images.length > 0) {
-                    // Tomar solo la primera imagen y validarla
-                    const firstImage = product.images[0];
-                    const imageUrl = buildImageUrl(firstImage);
-                    
-                    if (imageUrl && isValidImageUrl(imageUrl)) {
-                        imagesForStripe.push(imageUrl);
-                    }
-                }
+                const unitAmount = Math.round(price * 100); // Convertir a centavos
                 
-                // Si no hay imágenes válidas, dejar el array vacío (Stripe lo acepta)
-                // O puedes usar una imagen por defecto:
-                // if (imagesForStripe.length === 0) {
-                //     imagesForStripe.push('https://via.placeholder.com/300x300?text=Producto');
-                // }
+                console.log(`📝 Item ${index + 1}: ${product.name}, Cantidad: ${item.quantity}, Precio: $${price} (${unitAmount} centavos)`);
 
+                // ✅ SOLUCIÓN: NO incluir imágenes en absoluto
+                // Stripe acepta line items sin imágenes
                 return {
                     price_data: {
                         currency: 'mxn',
                         unit_amount: unitAmount,
                         product_data: {
-                            name: product.name.substring(0, 100), // Stripe límite 100 chars
-                            description: (product.short_desc || product.description || 'Producto sin descripción')
-                                .substring(0, 500), // Stripe límite 500 chars
-                            images: imagesForStripe, // Array vacío si no hay imágenes válidas
-                            metadata: {
-                                productId: product._id.toString(),
-                                sku: product.sku || `SKU-${product._id}`
-                            }
+                            name: product.name.substring(0, 100),
+                            description: (product.short_desc || product.description || 'Producto de CosmoVida')
+                                .substring(0, 500),
+                            // ❌ NO incluir imágenes
+                            // images: [] // Dejar fuera completamente
                         }
                     },
-                    quantity: item.quantity
+                    quantity: item.quantity,
+                    adjustable_quantity: {
+                        enabled: true,
+                        minimum: 1,
+                        maximum: 10
+                    }
                 };
             });
 
-            // Verificar que hayamos creado line items válidos
-            if (lineItems.length === 0) {
-                return res.status(400).json({
-                    success: false,
-                    message: "No se pudieron crear items válidos para el pago"
-                });
-            }
+            console.log("✅ Line items creados:", lineItems.length);
 
-            console.log(" Creando sesión con", lineItems.length, "items");
-
+            // Crear sesión de Stripe
             const session = await stripe.checkout.sessions.create({
                 ui_mode: 'embedded',
                 line_items: lineItems,
@@ -124,18 +74,19 @@ module.exports = {
                 return_url: `${FRONTEND_URL}/return`,
                 metadata: {
                     userId: userId.toString(),
-                    cartId: cart._id.toString()
+                    cartId: cart._id.toString(),
+                    totalItems: cart.products.length.toString()
                 },
                 billing_address_collection: 'required',
                 shipping_address_collection: {
-                    allowed_countries: ['MX', 'US'] // Países permitidos
+                    allowed_countries: ['MX']
                 },
                 phone_number_collection: {
                     enabled: true
                 },
                 custom_text: {
                     shipping_address: {
-                        message: 'Ingresa tu dirección de envío'
+                        message: 'Por favor ingresa tu dirección de envío en México'
                     },
                     submit: {
                         message: 'Pagar ahora'
@@ -143,35 +94,42 @@ module.exports = {
                 }
             });
 
-            // Guardar sessionId
+            console.log("🎫 Sesión Stripe creada exitosamente:", session.id);
+            console.log("🔑 Client secret generado");
+
+            // Guardar referencia de la sesión
             await Cart.findOneAndUpdate(
                 { user: userId },
                 { $set: { stripeSessionId: session.id } },
                 { new: true }
             );
 
-            console.log(" Sesión Stripe creada:", session.id);
-            
             res.json({ 
                 success: true, 
                 clientSecret: session.client_secret,
-                sessionId: session.id
+                sessionId: session.id,
+                message: "Sesión de pago creada exitosamente"
             });
             
         } catch (error) {
-            console.error(" Error detallado en createCheckoutSession:", {
-                message: error.message,
-                type: error.type,
-                code: error.code,
-                param: error.param
-            });
+            console.error("❌ ERROR CRÍTICO en createCheckoutSession:");
+            console.error("Mensaje:", error.message);
+            console.error("Tipo:", error.type);
+            console.error("Código:", error.code);
+            console.error("Parámetro:", error.param);
             
+            if (error.raw) {
+                console.error("Raw error from Stripe:", error.raw.message);
+            }
+
+            // Respuesta más informativa
             res.status(500).json({ 
                 success: false, 
                 message: "Error creando sesión de pago",
                 error: error.message,
-                stripeError: error.code,
-                param: error.param
+                stripeCode: error.code,
+                param: error.param,
+                suggestion: "Verificar que los productos tengan precios válidos y no incluir imágenes problemáticas"
             });
         }
     },
@@ -187,10 +145,9 @@ module.exports = {
                 });
             }
 
-            const session = await stripe.checkout.sessions.retrieve(sessionId, {
-                expand: ['line_items.data.price.product']
-            });
+            console.log("🔍 Verificando estado de sesión:", sessionId);
             
+            const session = await stripe.checkout.sessions.retrieve(sessionId);
             const userId = session.metadata?.userId || req.query.user_id;
             
             if (!userId) {
@@ -203,18 +160,11 @@ module.exports = {
             // Buscar carrito
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
             
-            if (!cart) {
-                return res.status(404).json({ 
-                    success: false, 
-                    message: "Carrito no encontrado." 
-                });
-            }
-
             // Solo crear orden si el pago es exitoso
             if (session.payment_status === 'paid') {
                 const existingOrder = await Order.findOne({ paymentId: sessionId });
                 
-                if (!existingOrder) {
+                if (!existingOrder && cart) {
                     const totalPrice = cart.products.reduce((sum, item) => 
                         sum + (item.product.price * item.quantity), 0
                     );
@@ -226,15 +176,15 @@ module.exports = {
                         paymentId: sessionId, 
                         paymentStatus: session.payment_status,
                         customerEmail: session.customer_details?.email || '',
-                        shipping: session.shipping_details || {},
-                        billing: session.customer_details || {}
+                        shipping: session.shipping_details || {}
                     });
+                    
                     await newOrder.save();
-
+                    
                     // Limpiar carrito
                     await Cart.findOneAndDelete({ user: userId });
                     
-                    console.log(` Orden ${newOrder._id} creada para usuario ${userId}`);
+                    console.log(`✅ Orden creada: ${newOrder._id}, Total: $${totalPrice}`);
                 }
             }
 
@@ -246,7 +196,7 @@ module.exports = {
             });
             
         } catch (error) {
-            console.error(" Error en sessionStatus:", error);
+            console.error("❌ Error en sessionStatus:", error);
             res.status(500).json({ 
                 success: false, 
                 message: "Error verificando estado de sesión",
