@@ -3,14 +3,9 @@
 # Asegúrate de estar en la carpeta raíz de CosmoVida
 cd "C:\Users\btici\Documents\ASEGURAMIENTO DE APLICACIONES WEB\CosmoVida"
 
-# Crea .gitignore si no existe
-echo "# Environment files" > .gitignore
-echo ".env" >> .gitignore
-echo ".env.local" >> .gitignore
-echo ".env*.local" >> .gitignore
-echo "node_modules/" >> .gitignore
-echo "# Otros archivos a ignorar..." >> .gitignore
-
+# Excluir archivos de entorno dentro de subcarpetas
+**/BACKEND/.env
+**/FRONTEND/.env
 # dependencies
 /node_modules
 /.pnp
