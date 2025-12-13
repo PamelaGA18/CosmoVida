@@ -44,3 +44,22 @@ app.use("/payment", paymentRouter)
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => { console.log(`El servidor está corriendo en el puerto ${PORT}`) })
+
+// En el backend
+app.post('/stripe-webhook', express.raw({type: 'application/json'}), async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    
+    try {
+        const event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
+        
+        if (event.type === 'checkout.session.completed') {
+            const session = event.data.object;
+            // Procesar pedido aquí
+            await processSuccessfulPayment(session);
+        }
+        
+        res.json({received: true});
+    } catch (err) {
+        res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+});

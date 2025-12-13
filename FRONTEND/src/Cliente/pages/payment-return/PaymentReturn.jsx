@@ -28,32 +28,30 @@ export default function PaymentReturn() {
     }
 
 
-    // En PaymentReturn.js
     useEffect(() => {
-        console.log(" PaymentReturn montado");
-        console.log("URL completa:", window.location.href);
-
-        const queryString = window.location.search;
-        const urlParams = new URLSearchParams(queryString);
-
-        const sessionId = urlParams.get('session_id');
-        const userId = urlParams.get('user_id');
-
-        console.log("Session ID:", sessionId);
-        console.log("User ID:", userId);
-        console.log("URL de API:", `${baseUrl}/payment/session-status?session_id=${sessionId}&user_id=${userId}`);
-
-        axios.get(`${baseUrl}/payment/session-status?session_id=${sessionId}&user_id=${userId}`)
-            .then(resp => {
-                console.log(" Respuesta de API:", resp.data);
-                setStatus(resp.data.status);
-                setCustomerEmail(resp.data.customer_email);
-                fetchCart();
-            })
-            .catch(e => {
-                console.log(" Error en API:", e.response?.data || e.message);
-            });
-    }, []);
+    const queryString = window.location.search;
+    const urlParams = new URLSearchParams(queryString);
+    const sessionId = urlParams.get('session_id');
+    
+    // Obtener token del localStorage
+    const userDataStr = localStorage.getItem("userData");
+    const token = userDataStr ? JSON.parse(userDataStr).token : null;
+    
+    if (token) {
+        axios.get(`${baseUrl}/payment/session-status?session_id=${sessionId}`, {
+            headers: { Authorization: token }
+        })
+        .then(resp => {
+            console.log("return", resp)
+            setStatus(resp.data.status);
+            setCustomerEmail(resp.data.customer_email)
+            fetchCart()
+        })
+        .catch(e => {
+            console.log("Return error", e)
+        });
+    }
+}, []);
 
 
     if (status === 'open') {
