@@ -1,10 +1,9 @@
 import { Disclosure, DisclosureButton, DisclosurePanel, Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react'
 import { Bars3Icon, BellIcon, XMarkIcon } from '@heroicons/react/24/outline'
-import { useState } from 'react'
+import { useState, useEffect } from 'react' // Añadido useEffect
 import { Link } from 'react-router-dom'
 import { ShoppingCartIcon } from "@heroicons/react/24/outline";
 import { useSelector } from 'react-redux';
-import { baseUrl } from '../../../environment';
 
 function classNames(...classes) {
     return classes.filter(Boolean).join(' ')
@@ -15,19 +14,36 @@ export default function Navbar() {
     const isAdmin = useSelector((state) => state.auth.admin);
     const cartTotal = useSelector((state) => state.cart.total);
 
-    // ✅ CORRECCIÓN: Acceder correctamente a los datos según tu authSlice
+    // ✅ Acceder correctamente a los datos del usuario
     const userData = useSelector(state => state.auth.userData);
-    const name = userData?.name || '';
-    const imageUrl = userData?.imageUrl || '';
+    
+    // ✅ Estados locales para manejar los datos del usuario
+    const [userName, setUserName] = useState('');
+    const [userImage, setUserImage] = useState('');
+    const [isImageLoaded, setIsImageLoaded] = useState(false);
 
     console.log("=== NAVBAR DEBUG ===");
     console.log("auth:", auth);
     console.log("isAdmin:", isAdmin);
     console.log("userData completo:", userData);
-    console.log("name:", name);
-    console.log("imageUrl:", imageUrl);
-    console.log("Estado completo de auth:", useSelector(state => state.auth));
     console.log("=====================");
+
+    // ✅ Efecto para manejar los datos del usuario de forma segura
+    useEffect(() => {
+        if (userData && userData.name) {
+            setUserName(userData.name);
+        } else {
+            setUserName('');
+        }
+
+        if (userData && userData.imageUrl) {
+            setUserImage(userData.imageUrl);
+            setIsImageLoaded(false); // Resetear estado de carga
+        } else {
+            setUserImage('/default-avatar.png');
+            setIsImageLoaded(true); // Imagen por defecto siempre está disponible
+        }
+    }, [userData]);
 
     const navigation = [
         { name: 'Inicio', link: '', current: true },
@@ -113,67 +129,102 @@ export default function Navbar() {
                                 className="relative text-gray-700 hover:bg-white/50 hover:text-gray-900 rounded-md px-3 py-2 text-sm font-medium transition"
                             >
                                 <ShoppingCartIcon className="h-6 w-6 text-gray-700" />
-                                <div className="absolute right-0 top-0 bg-white rounded-full text-gray-900 text-xs px-1 shadow">
-                                    {cartTotal}
-                                </div>
+                                {cartTotal > 0 && (
+                                    <div className="absolute -right-1 -top-1 bg-white rounded-full text-gray-900 text-xs w-5 h-5 flex items-center justify-center shadow">
+                                        {cartTotal}
+                                    </div>
+                                )}
                             </Link>
                         )}
 
-                        {/* Profile dropdown */}
+                        {/* Profile dropdown - Solo mostrar si está autenticado */}
                         {auth && (
                             <Menu as="div" className="relative ml-3">
-                                <MenuButton className="flex rounded-full focus-visible:outline-none items-center gap-2">
-                                    <img
-                                        src={imageUrl || "/default-avatar.png"}
-                                        alt="Avatar"
-                                        className="h-8 w-8 rounded-full object-cover border-2 border-white"
-                                        onError={(e) => {
-                                            console.log("❌ Error cargando imagen:", imageUrl);
-                                            e.target.src = "/default-avatar.png";
-                                        }}
-                                        onLoad={(e) => {
-                                            console.log("✅ Imagen cargada correctamente:", imageUrl);
-                                        }}
-                                    />
-                                    <span className="text-gray-900 text-sm font-medium hidden md:block">{name}</span>
+                                <MenuButton className="flex rounded-full focus-visible:outline-none items-center gap-2 hover:opacity-90 transition-opacity">
+                                    <div className="relative">
+                                        {/* Contenedor de imagen con loader */}
+                                        <img
+                                            src={userImage}
+                                            alt={userName || "Usuario"}
+                                            className="h-8 w-8 rounded-full object-cover border-2 border-white"
+                                            onError={(e) => {
+                                                console.log("❌ Error cargando imagen, usando avatar por defecto");
+                                                e.target.src = "/default-avatar.png";
+                                                setIsImageLoaded(true);
+                                            }}
+                                            onLoad={(e) => {
+                                                console.log("✅ Imagen cargada correctamente");
+                                                setIsImageLoaded(true);
+                                            }}
+                                            style={{
+                                                opacity: isImageLoaded ? 1 : 0,
+                                                transition: 'opacity 0.3s ease'
+                                            }}
+                                        />
+                                        {/* Loader mientras carga la imagen */}
+                                        {!isImageLoaded && userImage !== '/default-avatar.png' && (
+                                            <div className="absolute inset-0 flex items-center justify-center">
+                                                <div className="h-6 w-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {userName && (
+                                        <span className="text-gray-900 text-sm font-medium hidden md:block truncate max-w-[120px]">
+                                            {userName}
+                                        </span>
+                                    )}
                                 </MenuButton>
 
                                 <MenuItems
                                     transition
-                                    className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-purple-100 py-2 shadow-lg ring-1 ring-black/5 transition"
+                                    className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-purple-100 py-2 shadow-lg ring-1 ring-black/5 transition focus:outline-none"
                                 >
                                     <MenuItem>
-                                        <Link
-                                            to={'/profile'}
-                                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-white rounded-md"
-                                        >
-                                            Tu perfil
-                                        </Link>
+                                        {({ active }) => (
+                                            <Link
+                                                to={'/profile'}
+                                                className={classNames(
+                                                    active ? 'bg-white' : '',
+                                                    'block px-4 py-2 text-sm text-gray-700 rounded-md'
+                                                )}
+                                            >
+                                                Tu perfil
+                                            </Link>
+                                        )}
                                     </MenuItem>
 
-                                    {auth && isAdmin && (
+                                    {isAdmin && (
                                         <MenuItem>
-                                            <Link
-                                                to={'/admin'}
-                                                className="block px-4 py-2 text-sm text-gray-700 hover:bg-white rounded-md"
-                                            >
-                                                Panel
-                                            </Link>
+                                            {({ active }) => (
+                                                <Link
+                                                    to={'/admin'}
+                                                    className={classNames(
+                                                        active ? 'bg-white' : '',
+                                                        'block px-4 py-2 text-sm text-gray-700 rounded-md'
+                                                    )}
+                                                >
+                                                    Panel de administración
+                                                </Link>
+                                            )}
                                         </MenuItem>
                                     )}
 
                                     <MenuItem>
-                                        <Link
-                                            to={'/sign-out'}
-                                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-white rounded-md"
-                                        >
-                                            Cerrar sesión
-                                        </Link>
+                                        {({ active }) => (
+                                            <Link
+                                                to={'/sign-out'}
+                                                className={classNames(
+                                                    active ? 'bg-white' : '',
+                                                    'block px-4 py-2 text-sm text-gray-700 rounded-md'
+                                                )}
+                                            >
+                                                Cerrar sesión
+                                            </Link>
+                                        )}
                                     </MenuItem>
                                 </MenuItems>
                             </Menu>
                         )}
-
                     </div>
                 </div>
             </div>
@@ -184,8 +235,8 @@ export default function Navbar() {
                     {navigation.map((item) => (
                         <DisclosureButton
                             key={item.name}
-                            as="a"
-                            href={item.href}
+                            as={Link}
+                            to={item.link}
                             aria-current={item.current ? 'page' : undefined}
                             className={classNames(
                                 item.current
@@ -197,6 +248,70 @@ export default function Navbar() {
                             {item.name}
                         </DisclosureButton>
                     ))}
+                    
+                    {/* Mobile: Login/Register links */}
+                    {!auth && (
+                        <>
+                            <DisclosureButton
+                                as={Link}
+                                to={'login'}
+                                className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-white/50 hover:text-gray-900 transition"
+                            >
+                                Iniciar sesión
+                            </DisclosureButton>
+                            <DisclosureButton
+                                as={Link}
+                                to={'register'}
+                                className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-white/50 hover:text-gray-900 transition"
+                            >
+                                Registrarse
+                            </DisclosureButton>
+                        </>
+                    )}
+                    
+                    {/* Mobile: Menu para usuarios autenticados */}
+                    {auth && (
+                        <>
+                            <DisclosureButton
+                                as={Link}
+                                to={'orders'}
+                                className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-white/50 hover:text-gray-900 transition"
+                            >
+                                Mis pedidos
+                            </DisclosureButton>
+                            <DisclosureButton
+                                as={Link}
+                                to={'cart'}
+                                className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-white/50 hover:text-gray-900 transition flex items-center gap-2"
+                            >
+                                <ShoppingCartIcon className="h-5 w-5" />
+                                Carrito {cartTotal > 0 && `(${cartTotal})`}
+                            </DisclosureButton>
+                            <DisclosureButton
+                                as={Link}
+                                to={'/profile'}
+                                className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-white/50 hover:text-gray-900 transition"
+                            >
+                                Mi perfil
+                            </DisclosureButton>
+                            {isAdmin && (
+                                <DisclosureButton
+                                    as={Link}
+                                    to={'/admin'}
+                                    className="block rounded-md px-3 py-2 text-base font-medium text-gray-700 hover:bg-white/50 hover:text-gray-900 transition"
+                                >
+                                    Panel administrativo
+                                </DisclosureButton>
+                            )}
+                            <DisclosureButton
+                                as={Link}
+                                to={'/sign-out'}
+                                className="block rounded-md px-3 py-2 text-base font-medium text-red-700 hover:bg-red-50 hover:text-red-900 transition"
+                            >
+                                Cerrar sesión
+                            </DisclosureButton>
+                        </>
+                    )}
                 </div>
             </DisclosurePanel>
         </Disclosure>
