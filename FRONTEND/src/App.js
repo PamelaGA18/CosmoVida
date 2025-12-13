@@ -27,7 +27,7 @@ import axios from 'axios';
 import { baseUrl } from './environment';
 import { updateTotal } from './state/cartSlice';
 import PaymentReturn from './Cliente/pages/payment return/PaymentReturn';
-import ProductDetails from './Cliente/pages/product details/ProductDetails';
+import ProductDetails from './Cliente/pages/product-details/ProductDetails';
 import Profile from './Cliente/pages/profile/Profile';
 
 function App() {
