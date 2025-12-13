@@ -1,43 +1,33 @@
 import './App.css';
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-// ... otros imports
-
-// Componente para manejar redirecciones de pago
-function PaymentRedirectHandler() {
-    const navigate = useNavigate();
-    const location = useLocation();
-
-    useEffect(() => {
-        // Verificar si hay parámetros de pago en la URL
-        const searchParams = new URLSearchParams(location.search);
-        const sessionId = searchParams.get('session_id');
-        const success = searchParams.get('success');
-        
-        if (sessionId && success === 'true') {
-            console.log("💰 Pago exitoso detectado, sessionId:", sessionId);
-            
-            // Guardar en localStorage por si acaso
-            localStorage.setItem('last_payment_session', sessionId);
-            localStorage.setItem('payment_redirected', 'true');
-            
-            // Redirigir a PaymentReturn
-            navigate(`/payment-return?session_id=${sessionId}`, { replace: true });
-        }
-        
-        // También verificar si hay parámetros en el hash (Stripe a veces los pone ahí)
-        if (location.hash) {
-            const hashParams = new URLSearchParams(location.hash.substring(1));
-            const hashSessionId = hashParams.get('session_id');
-            if (hashSessionId) {
-                console.log("🔗 SessionId encontrado en hash:", hashSessionId);
-                navigate(`/payment-return?session_id=${hashSessionId}`, { replace: true });
-            }
-        }
-    }, [location, navigate]);
-
-    return null; // Este componente no renderiza nada
-}
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import ClienteModule from './Cliente/ClienteModule';
+import Home from './Cliente/pages/home/Home';
+import Products from './Cliente/pages/products/Products';
+import Cart from './Cliente/pages/cart/Cart';
+import Orders from './Cliente/pages/orders/Orders';
+import Login from './Cliente/pages/login/Login';
+import Register from './Cliente/pages/register/Register';
+import AdminModule from './Admin/AdminModule';
+import Dashboard from './Admin/pages/dashboard/Dashboard';
+import OrderDetails from './Cliente/pages/order-details/OrderDetails';
+import ProductsAdmin from './Admin/pages/products/ProductsAdmin';
+import UsersAdmin from './Admin/pages/users/UsersAdmin';
+import OrdersAdmin from './Admin/pages/orders/OrdersAdmin';
+import Category from './Admin/pages/category/Category';
+import Colors from './Admin/pages/color/Colors';
+import PrivateRoute from './guards/PrivateRoute';
+import PrivateAdminRoute from './guards/PrivateAdminRoute';
+import SignOut from './Cliente/pages/sign-out/SignOut';
+import { useDispatch } from 'react-redux';
+import { login } from './state/authSlice';
+import Checkout from './Cliente/pages/checkout/Checkout';
+import axios from 'axios';
+import { baseUrl } from './environment';
+import { updateTotal } from './state/cartSlice';
+import PaymentReturn from './Cliente/pages/payment-return/PaymentReturn';
+import ProductDetails from './Cliente/pages/ProductDetails/ProductDetails';
+import Profile from './Cliente/pages/profile/Profile';
 
 function App() {
   const dispatch = useDispatch();
@@ -65,22 +55,10 @@ function App() {
         dispatch(login({ auth: true, admin: false }));
       }
     }
-    
-    // Verificar si hay un pago pendiente de procesar
-    const lastPaymentSession = localStorage.getItem('last_payment_session');
-    const paymentRedirected = localStorage.getItem('payment_redirected');
-    
-    if (lastPaymentSession && paymentRedirected !== 'true') {
-      console.log("🔄 Procesando pago pendiente:", lastPaymentSession);
-      // Podrías redirigir automáticamente o procesar aquí
-    }
   }, []);
 
   return (
     <BrowserRouter>
-      {/* Componente para manejar redirecciones de pago */}
-      <PaymentRedirectHandler />
-      
       <Routes>
         <Route path="/admin" element={<PrivateAdminRoute><AdminModule /></PrivateAdminRoute>}>
           <Route index element={<Dashboard />} />
