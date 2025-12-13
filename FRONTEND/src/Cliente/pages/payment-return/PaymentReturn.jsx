@@ -31,16 +31,11 @@ export default function PaymentReturn() {
     useEffect(() => {
     const queryString = window.location.search;
     const urlParams = new URLSearchParams(queryString);
+
     const sessionId = urlParams.get('session_id');
-    
-    // Obtener token del localStorage
-    const userDataStr = localStorage.getItem("userData");
-    const token = userDataStr ? JSON.parse(userDataStr).token : null;
-    
-    if (token) {
-        axios.get(`${baseUrl}/payment/session-status?session_id=${sessionId}`, {
-            headers: { Authorization: token }
-        })
+    const userId = urlParams.get('user_id'); // ← AQUÍ LO LEES
+
+    axios.get(`${baseUrl}/payment/session-status?session_id=${sessionId}&user_id=${userId}`)
         .then(resp => {
             console.log("return", resp)
             setStatus(resp.data.status);
@@ -50,7 +45,7 @@ export default function PaymentReturn() {
         .catch(e => {
             console.log("Return error", e)
         });
-    }
+
 }, []);
 
 

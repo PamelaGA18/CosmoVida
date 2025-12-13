@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get('/create-session', authenticate,  createCheckoutSesion);
 
-router.get("/session-status", sessionStatus);
+router.get("/session-status", zsessionStatus);
 
 
 

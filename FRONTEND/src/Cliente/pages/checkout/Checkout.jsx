@@ -8,7 +8,6 @@ import { baseUrl } from "../../../environment";
 const stripePromise = loadStripe("sk_test_51RUheLQj0Dr03eMVi8bA99yUYERm7QQJvZa48td9JIeuPj7HukQtZWK8s25uzvlQzcaT2JG2HEBu86turllrfVGX00ZXNcYdH1");
 
 export default function Checkout() {
-    localStorage.setItem('pending_payment_session', sessionId);
 
     const fetchClientSecret = useCallback(() => {
 

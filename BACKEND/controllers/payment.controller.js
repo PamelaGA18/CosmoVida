@@ -8,7 +8,7 @@ module.exports = {
 
     createCheckoutSesion: async (req, res) => {
         try {
-             const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const YOUR_DOMAIN = 'http://localhost:3000';
 
             const userId = req.user.id;
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
@@ -32,7 +32,7 @@ module.exports = {
                 ui_mode: 'embedded',
                 line_items: lineItems,
                 mode: 'payment',
-                return_url: `${FRONTEND_URL}/return?session_id={CHECKOUT_SESSION_ID}&user_id=${userId}`
+                return_url: `${YOUR_DOMAIN}/return?session_id={CHECKOUT_SESSION_ID}&user_id=${userId}`
             });
 
             res.send({ clientSecret: session.client_secret });
