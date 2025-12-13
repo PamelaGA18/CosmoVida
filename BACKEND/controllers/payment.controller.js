@@ -7,21 +7,21 @@ module.exports = {
     createCheckoutSession: async (req, res) => {
         try {
             console.log(" Iniciando creación de sesión de pago...");
-            
+
             const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
             const userId = req.user.id;
-            
+
             console.log(" Usuario ID:", userId);
-            
+
             // Buscar carrito
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
-            
-            if (!cart || cart.products.length === 0) { 
+
+            if (!cart || cart.products.length === 0) {
                 console.log(" Carrito vacío o no encontrado");
-                return res.status(404).json({ 
-                    success: false, 
-                    message: "Carrito vacío o no encontrado." 
-                }); 
+                return res.status(404).json({
+                    success: false,
+                    message: "Carrito vacío o no encontrado."
+                });
             }
 
             console.log(" Productos en carrito:", cart.products.length);
@@ -29,16 +29,16 @@ module.exports = {
             // Crear line items SIN imágenes para evitar errores
             const lineItems = cart.products.map((item, index) => {
                 const product = item.product;
-                
+
                 // Validar y convertir precio
                 const price = parseFloat(product.price);
                 if (isNaN(price) || price <= 0) {
                     console.error(` Precio inválido para producto ${product.name}: ${product.price}`);
                     throw new Error(`Precio inválido para producto: ${product.name}`);
                 }
-                
+
                 const unitAmount = Math.round(price * 100); // Convertir a centavos
-                
+
                 console.log(` Item ${index + 1}: ${product.name}, Cantidad: ${item.quantity}, Precio: $${price} (${unitAmount} centavos)`);
 
                 //  SOLUCIÓN: NO incluir imágenes en absoluto
@@ -67,31 +67,27 @@ module.exports = {
             console.log(" Line items creados:", lineItems.length);
 
             // Crear sesión de Stripe
+            // REEMPLAZA la creación de la sesión con:
             const session = await stripe.checkout.sessions.create({
-                ui_mode: 'embedded',
                 line_items: lineItems,
                 mode: 'payment',
-                return_url: `${FRONTEND_URL}/payment-return`,
+                success_url: `${FRONTEND_URL}/payment-return?session_id={CHECKOUT_SESSION_ID}&success=true`,
+                cancel_url: `${FRONTEND_URL}/cart?canceled=true`,
                 metadata: {
                     userId: userId.toString(),
-                    cartId: cart._id.toString(),
-                    totalItems: cart.products.length.toString()
+                    cartId: cart._id.toString()
                 },
                 billing_address_collection: 'required',
                 shipping_address_collection: {
                     allowed_countries: ['MX']
-                },
-                phone_number_collection: {
-                    enabled: true
-                },
-                custom_text: {
-                    shipping_address: {
-                        message: 'Por favor ingresa tu dirección de envío en México'
-                    },
-                    submit: {
-                        message: 'Pagar ahora'
-                    }
                 }
+            });
+
+            // Devuelve la URL en lugar de client_secret
+            res.json({
+                success: true,
+                url: session.url, // <-- URL para redirigir a Stripe
+                sessionId: session.id
             });
 
             console.log(" Sesión Stripe creada exitosamente:", session.id);
@@ -104,27 +100,27 @@ module.exports = {
                 { new: true }
             );
 
-            res.json({ 
-                success: true, 
+            res.json({
+                success: true,
                 clientSecret: session.client_secret,
                 sessionId: session.id,
                 message: "Sesión de pago creada exitosamente"
             });
-            
+
         } catch (error) {
             console.error(" ERROR CRÍTICO en createCheckoutSession:");
             console.error("Mensaje:", error.message);
             console.error("Tipo:", error.type);
             console.error("Código:", error.code);
             console.error("Parámetro:", error.param);
-            
+
             if (error.raw) {
                 console.error("Raw error from Stripe:", error.raw.message);
             }
 
             // Respuesta más informativa
-            res.status(500).json({ 
-                success: false, 
+            res.status(500).json({
+                success: false,
                 message: "Error creando sesión de pago",
                 error: error.message,
                 stripeCode: error.code,
@@ -137,53 +133,53 @@ module.exports = {
     sessionStatus: async (req, res) => {
         try {
             const sessionId = req.query.session_id;
-            
+
             if (!sessionId) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: "session_id es requerido" 
+                return res.status(400).json({
+                    success: false,
+                    message: "session_id es requerido"
                 });
             }
 
             console.log(" Verificando estado de sesión:", sessionId);
-            
+
             const session = await stripe.checkout.sessions.retrieve(sessionId);
             const userId = session.metadata?.userId || req.query.user_id;
-            
+
             if (!userId) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: "No se pudo identificar el usuario" 
+                return res.status(400).json({
+                    success: false,
+                    message: "No se pudo identificar el usuario"
                 });
             }
 
             // Buscar carrito
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
-            
+
             // Solo crear orden si el pago es exitoso
             if (session.payment_status === 'paid') {
                 const existingOrder = await Order.findOne({ paymentId: sessionId });
-                
+
                 if (!existingOrder && cart) {
-                    const totalPrice = cart.products.reduce((sum, item) => 
+                    const totalPrice = cart.products.reduce((sum, item) =>
                         sum + (item.product.price * item.quantity), 0
                     );
 
-                    const newOrder = new Order({ 
-                        user: userId, 
-                        products: cart.products, 
-                        totalPrice, 
-                        paymentId: sessionId, 
+                    const newOrder = new Order({
+                        user: userId,
+                        products: cart.products,
+                        totalPrice,
+                        paymentId: sessionId,
                         paymentStatus: session.payment_status,
                         customerEmail: session.customer_details?.email || '',
                         shipping: session.shipping_details || {}
                     });
-                    
+
                     await newOrder.save();
-                    
+
                     // Limpiar carrito
                     await Cart.findOneAndDelete({ user: userId });
-                    
+
                     console.log(` Orden creada: ${newOrder._id}, Total: $${totalPrice}`);
                 }
             }
@@ -194,13 +190,13 @@ module.exports = {
                 customer_email: session.customer_details?.email || '',
                 sessionId: session.id
             });
-            
+
         } catch (error) {
             console.error(" Error en sessionStatus:", error);
-            res.status(500).json({ 
-                success: false, 
+            res.status(500).json({
+                success: false,
                 message: "Error verificando estado de sesión",
-                error: error.message 
+                error: error.message
             });
         }
     }
