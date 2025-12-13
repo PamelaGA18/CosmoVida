@@ -46,7 +46,7 @@ const login = async (req, res) => {
         if (user.imageUrl) {
             imageUrl = user.imageUrl.startsWith('http')
                 ? user.imageUrl
-                : `http://localhost:5000/uploads/${user.imageUrl}`;
+                : `${process.env.BACKEND_URL || 'http://localhost:5000'}/uploads/${user.imageUrl}`;
         }
 
         res.header("Authorization", token).status(200).json({
