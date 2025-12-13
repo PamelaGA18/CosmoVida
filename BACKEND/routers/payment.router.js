@@ -9,6 +9,6 @@ router.get('/create-session', authenticate,  createCheckoutSesion);
 
 router.get("/session-status", authenticate,  sessionStatus);
 
-
+router.get("/public-session-status", sessionStatusPublic); // Ruta pública
 
 module.exports = router;

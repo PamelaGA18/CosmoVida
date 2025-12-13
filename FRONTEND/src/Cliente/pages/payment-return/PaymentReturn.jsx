@@ -28,25 +28,25 @@ export default function PaymentReturn() {
     }
 
 
+    // PaymentReturn.js - useEffect corregido
     useEffect(() => {
-    const queryString = window.location.search;
-    const urlParams = new URLSearchParams(queryString);
+        const queryString = window.location.search;
+        const urlParams = new URLSearchParams(queryString);
+        const sessionId = urlParams.get('session_id');
 
-    const sessionId = urlParams.get('session_id');
-    const userId = urlParams.get('user_id'); // ← AQUÍ LO LEES
-
-    axios.get(`${baseUrl}/payment/session-status?session_id=${sessionId}&user_id=${userId}`)
-        .then(resp => {
-            console.log("return", resp)
-            setStatus(resp.data.status);
-            setCustomerEmail(resp.data.customer_email)
-            fetchCart()
-        })
-        .catch(e => {
-            console.log("Return error", e)
-        });
-
-}, []);
+        // ✅ Usa la nueva ruta PÚBLICA
+        axios.get(`${baseUrl}/payment/public-session-status?session_id=${sessionId}`)
+            .then(resp => {
+                console.log("Payment status response:", resp.data);
+                setStatus(resp.data.status);
+                setCustomerEmail(resp.data.customer_email);
+                // Opcional: Aquí podrías disparar una acción de Redux para actualizar el carrito global
+            })
+            .catch(e => {
+                console.error("Error fetching payment status:", e);
+                // Puedes mostrar un mensaje de error al usuario
+            });
+    }, []);
 
 
     if (status === 'open') {
