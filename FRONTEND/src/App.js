@@ -86,7 +86,7 @@ function App() {
           <Route path="register" element={<Register />} />
           <Route path='sign-out' element={<SignOut/>} />
           <Route path='checkout' element={<Checkout/>}/>
-          <Route path='return' element={<PaymentReturn/>}/>
+          <Route path="/payment-return" element={<PaymentReturn />} />
           <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
           {/*<Route path="*" element={<NoPage />} /> */}
         </Route>
