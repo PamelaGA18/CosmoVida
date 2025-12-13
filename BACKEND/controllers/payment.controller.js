@@ -6,25 +6,25 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET);
 module.exports = {
     createCheckoutSession: async (req, res) => {
         try {
-            console.log("🛒 Iniciando creación de sesión de pago...");
+            console.log(" Iniciando creación de sesión de pago...");
             
             const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
             const userId = req.user.id;
             
-            console.log("👤 Usuario ID:", userId);
+            console.log(" Usuario ID:", userId);
             
             // Buscar carrito
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
             
             if (!cart || cart.products.length === 0) { 
-                console.log("❌ Carrito vacío o no encontrado");
+                console.log(" Carrito vacío o no encontrado");
                 return res.status(404).json({ 
                     success: false, 
                     message: "Carrito vacío o no encontrado." 
                 }); 
             }
 
-            console.log("📦 Productos en carrito:", cart.products.length);
+            console.log(" Productos en carrito:", cart.products.length);
 
             // Crear line items SIN imágenes para evitar errores
             const lineItems = cart.products.map((item, index) => {
@@ -33,15 +33,15 @@ module.exports = {
                 // Validar y convertir precio
                 const price = parseFloat(product.price);
                 if (isNaN(price) || price <= 0) {
-                    console.error(`⚠️ Precio inválido para producto ${product.name}: ${product.price}`);
+                    console.error(` Precio inválido para producto ${product.name}: ${product.price}`);
                     throw new Error(`Precio inválido para producto: ${product.name}`);
                 }
                 
                 const unitAmount = Math.round(price * 100); // Convertir a centavos
                 
-                console.log(`📝 Item ${index + 1}: ${product.name}, Cantidad: ${item.quantity}, Precio: $${price} (${unitAmount} centavos)`);
+                console.log(` Item ${index + 1}: ${product.name}, Cantidad: ${item.quantity}, Precio: $${price} (${unitAmount} centavos)`);
 
-                // ✅ SOLUCIÓN: NO incluir imágenes en absoluto
+                //  SOLUCIÓN: NO incluir imágenes en absoluto
                 // Stripe acepta line items sin imágenes
                 return {
                     price_data: {
@@ -51,7 +51,7 @@ module.exports = {
                             name: product.name.substring(0, 100),
                             description: (product.short_desc || product.description || 'Producto de CosmoVida')
                                 .substring(0, 500),
-                            // ❌ NO incluir imágenes
+                            // NO incluir imágenes
                             // images: [] // Dejar fuera completamente
                         }
                     },
@@ -64,14 +64,14 @@ module.exports = {
                 };
             });
 
-            console.log("✅ Line items creados:", lineItems.length);
+            console.log(" Line items creados:", lineItems.length);
 
             // Crear sesión de Stripe
             const session = await stripe.checkout.sessions.create({
                 ui_mode: 'embedded',
                 line_items: lineItems,
                 mode: 'payment',
-                return_url: `${FRONTEND_URL}/return`,
+                return_url: `${FRONTEND_URL}/payment-return`,
                 metadata: {
                     userId: userId.toString(),
                     cartId: cart._id.toString(),
@@ -94,8 +94,8 @@ module.exports = {
                 }
             });
 
-            console.log("🎫 Sesión Stripe creada exitosamente:", session.id);
-            console.log("🔑 Client secret generado");
+            console.log(" Sesión Stripe creada exitosamente:", session.id);
+            console.log(" Client secret generado");
 
             // Guardar referencia de la sesión
             await Cart.findOneAndUpdate(
@@ -112,7 +112,7 @@ module.exports = {
             });
             
         } catch (error) {
-            console.error("❌ ERROR CRÍTICO en createCheckoutSession:");
+            console.error(" ERROR CRÍTICO en createCheckoutSession:");
             console.error("Mensaje:", error.message);
             console.error("Tipo:", error.type);
             console.error("Código:", error.code);
@@ -145,7 +145,7 @@ module.exports = {
                 });
             }
 
-            console.log("🔍 Verificando estado de sesión:", sessionId);
+            console.log(" Verificando estado de sesión:", sessionId);
             
             const session = await stripe.checkout.sessions.retrieve(sessionId);
             const userId = session.metadata?.userId || req.query.user_id;
@@ -184,7 +184,7 @@ module.exports = {
                     // Limpiar carrito
                     await Cart.findOneAndDelete({ user: userId });
                     
-                    console.log(`✅ Orden creada: ${newOrder._id}, Total: $${totalPrice}`);
+                    console.log(` Orden creada: ${newOrder._id}, Total: $${totalPrice}`);
                 }
             }
 
@@ -196,7 +196,7 @@ module.exports = {
             });
             
         } catch (error) {
-            console.error("❌ Error en sessionStatus:", error);
+            console.error(" Error en sessionStatus:", error);
             res.status(500).json({ 
                 success: false, 
                 message: "Error verificando estado de sesión",
