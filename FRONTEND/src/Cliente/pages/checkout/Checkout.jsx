@@ -4,17 +4,20 @@ import axios from "axios";
 import { useCallback } from "react";
 import { baseUrl } from "../../../environment";
 import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 
-//  Usar variable de entorno para clave pública
 const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY || "pk_test_51RUheLQj0Dr03eMVBwAUYhPIbzHSW2H1NQ1cOjdah8UgP8xjmYerXLA1bAKDM3IRA1xDV9Ou7FLBHYC9ZvFMFmx300dplyYt5a");
 
 export default function Checkout() {
     const { token } = useSelector((state) => state.auth.userData || {});
+    const navigate = useNavigate();
 
     const fetchClientSecret = useCallback(() => {
+        console.log(" Solicitando client secret...");
+        
         return axios.post(
             `${baseUrl}/payment/create-session`,
-            {}, // cuerpo vacío o datos necesarios
+            {},
             {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -23,35 +26,50 @@ export default function Checkout() {
             }
         )
         .then(resp => {
+            console.log(" Respuesta del backend:", resp.data);
+            
             if (resp.data.success && resp.data.clientSecret) {
-                console.log(" Client secret obtenido");
+                // Guardar sessionId en localStorage como backup
+                if (resp.data.sessionId) {
+                    localStorage.setItem('stripe_session_id', resp.data.sessionId);
+                    console.log(" SessionId guardado:", resp.data.sessionId);
+                }
+                
                 return resp.data.clientSecret;
             } else {
-                throw new Error("No se pudo obtener clientSecret");
+                throw new Error(resp.data.message || "No se pudo obtener clientSecret");
             }
         })
         .catch(e => {
-            console.error(" Error en create-session:", e.response?.data || e.message);
-            throw e; // Importante propagar el error
+            console.error("Error detallado:", {
+                message: e.message,
+                response: e.response?.data,
+                status: e.response?.status
+            });
+            throw e;
         });
     }, [token]);
 
     const options = { 
         fetchClientSecret,
-        onComplete: () => {
-            console.log(" Pago completado");
-            // Redirigir o actualizar estado
+        onComplete: (result) => {
+            console.log(" Checkout completado:", result);
+            // Redirigir a la página de retorno
+            navigate('/return');
         }
     };
 
     return (
-        <div id="checkout" style={{ minHeight: '400px' }}>
-            <EmbeddedCheckoutProvider
-                stripe={stripePromise}
-                options={options}
-            >
-                <EmbeddedCheckout />
-            </EmbeddedCheckoutProvider>
+        <div id="checkout" style={{ minHeight: '500px', padding: '20px' }}>
+            <h2 className="text-xl font-bold mb-4">Proceso de Pago</h2>
+            <div className="border rounded-lg p-4">
+                <EmbeddedCheckoutProvider
+                    stripe={stripePromise}
+                    options={options}
+                >
+                    <EmbeddedCheckout />
+                </EmbeddedCheckoutProvider>
+            </div>
         </div>
     );
 }
