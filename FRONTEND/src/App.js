@@ -19,7 +19,7 @@ import Category from './Admin/pages/category/Category';
 import Colors from './Admin/pages/color/Colors';
 import PrivateRoute from './guards/PrivateRoute';
 import PrivateAdminRoute from './guards/PrivateAdminRoute';
-import SignOut from './Cliente/pages/sign out/SignOut';
+import SignOut from './Cliente/pages/sign-out/SignOut';
 import { useDispatch } from 'react-redux';
 import { login } from './state/authSlice';
 import Checkout from './Cliente/pages/checkout/Checkout';
@@ -96,3 +96,4 @@ function App() {
 }
 
 export default App;
+
