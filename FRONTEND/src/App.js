@@ -11,7 +11,7 @@ import Login from './Cliente/pages/login/Login';
 import Register from './Cliente/pages/register/Register';
 import AdminModule from './Admin/AdminModule';
 import Dashboard from './Admin/pages/dashboard/Dashboard';
-import OrderDetails from './Cliente/pages/order details/OrderDetails';
+import OrderDetails from './Cliente/pages/order-details/OrderDetails';
 import ProductsAdmin from './Admin/pages/products/ProductsAdmin';
 import UsersAdmin from './Admin/pages/users/UsersAdmin';
 import OrdersAdmin from './Admin/pages/orders/OrdersAdmin';
@@ -19,15 +19,15 @@ import Category from './Admin/pages/category/Category';
 import Colors from './Admin/pages/color/Colors';
 import PrivateRoute from './guards/PrivateRoute';
 import PrivateAdminRoute from './guards/PrivateAdminRoute';
-import SignOut from './Cliente/pages/sign out/SignOut';
+import SignOut from './Cliente/pages/sign-out/SignOut';
 import { useDispatch } from 'react-redux';
 import { login } from './state/authSlice';
 import Checkout from './Cliente/pages/checkout/Checkout';
 import axios from 'axios';
 import { baseUrl } from './environment';
 import { updateTotal } from './state/cartSlice';
-import PaymentReturn from './Cliente/pages/payment return/PaymentReturn';
-import ProductDetails from './Cliente/pages/product-details/ProductDetails';
+import PaymentReturn from './Cliente/pages/payment-return/PaymentReturn';
+import ProductDetails from './Cliente/pages/ProductDetails/ProductDetails';
 import Profile from './Cliente/pages/profile/Profile';
 
 function App() {
