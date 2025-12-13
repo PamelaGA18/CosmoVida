@@ -1,11 +1,5 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Asegúrate de estar en la carpeta raíz de CosmoVida
-cd "C:\Users\btici\Documents\ASEGURAMIENTO DE APLICACIONES WEB\CosmoVida"
-
-# Excluir archivos de entorno dentro de subcarpetas
-**/BACKEND/.env
-**/FRONTEND/.env
 # dependencies
 /node_modules
 /.pnp
@@ -27,3 +21,11 @@ cd "C:\Users\btici\Documents\ASEGURAMIENTO DE APLICACIONES WEB\CosmoVida"
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Excluir todos los archivos de entorno
+.env
+# Excluir archivos de entorno dentro de subcarpetas
+**/BACKEND/.env
+**/FRONTEND/.env
+# Excluir carpetas grandes de dependencias
+**/node_modules
