@@ -29,6 +29,7 @@ import { updateTotal } from './state/cartSlice';
 import PaymentReturn from './Cliente/pages/payment-return/PaymentReturn';
 import ProductDetails from './Cliente/pages/ProductDetails/ProductDetails';
 import Profile from './Cliente/pages/profile/Profile';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 
 function App() {
 
@@ -88,6 +89,8 @@ function App() {
           <Route path='checkout' element={<Checkout/>}/>
           <Route path="/payment-return" element={<PaymentReturn />} />
           <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+          // Al FINAL de tus rutas en App.js, agrega:
+          <Route path="*" element={<Navigate to="/" replace />} />
           {/*<Route path="*" element={<NoPage />} /> */}
         </Route>
       </Routes>
