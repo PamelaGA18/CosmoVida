@@ -1,6 +1,6 @@
 import './App.css';
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ClienteModule from './Cliente/ClienteModule';
 import Home from './Cliente/pages/home/Home';
 import Products from './Cliente/pages/products/Products';
@@ -29,85 +29,36 @@ import PaymentReturn from './Cliente/pages/payment-return/PaymentReturn';
 import ProductDetails from './Cliente/pages/ProductDetails/ProductDetails';
 import Profile from './Cliente/pages/profile/Profile';
 
-// Componente para detectar pagos automáticamente
-function PaymentDetector() {
-  const navigate = useNavigate();
-  const location = useLocation();
-
-  useEffect(() => {
-    // Verificar si estamos en la raíz con parámetros de pago
-    const searchParams = new URLSearchParams(location.search);
-    const sessionId = searchParams.get('session_id');
-    const paymentSuccess = searchParams.get('payment_success');
-    
-    console.log("📍 PaymentDetector activado:");
-    console.log("   Ruta:", location.pathname);
-    console.log("   Parámetros:", location.search);
-    console.log("   session_id:", sessionId);
-    console.log("   payment_success:", paymentSuccess);
-    
-    // Detectar pago exitoso
-    if (sessionId && paymentSuccess === '1') {
-      console.log("💰 ¡PAGO DETECTADO! Redirigiendo a PaymentReturn...");
-      
-      // Guardar en sessionStorage temporalmente
-      sessionStorage.setItem('last_payment_session_id', sessionId);
-      
-      // Redirigir inmediatamente
-      navigate(`/payment-return?session_id=${sessionId}`, { 
-        replace: true 
-      });
-    }
-  }, [location, navigate]);
-
-  return null;
-}
-
 function App() {
   const dispatch = useDispatch();
 
   const fetchCart = () => {
     axios.get(`${baseUrl}/cart`).then(resp => {
-      console.log("🛒 Carrito:", resp.data.cart);
+      console.log("cart response", resp.data.cart);
       dispatch(updateTotal(resp.data.cart.products.length));
     }).catch(e => {
-      console.log("❌ Error carrito:", e);
+      console.log("Cart fetch error", e);
     });
   };
 
   useEffect(() => {
     fetchCart();
 
-    // Verificar usuario en localStorage
     const userDataStr = localStorage.getItem("userData");
     if (userDataStr) {
       const userData = JSON.parse(userDataStr);
       if (userData.token && userData.role === 'admin') {
-        dispatch(login({ auth: true, admin: true, userData }));
-      } else if (userData.token && userData.role === 'user') {
-        dispatch(login({ auth: true, admin: false, userData }));
+        dispatch(login({ auth: true, admin: true }));
+      }
+
+      if (userData.token && userData.role === 'user') {
+        dispatch(login({ auth: true, admin: false }));
       }
     }
-    
-    // Detectar pago al cargar la página (fallback)
-    const searchParams = new URLSearchParams(window.location.search);
-    const sessionId = searchParams.get('session_id');
-    const paymentSuccess = searchParams.get('payment_success');
-    
-    if (sessionId && paymentSuccess === '1') {
-      console.log("🚨 Pago detectado en carga inicial, redirigiendo...");
-      // Pequeño delay para asegurar que React Router esté listo
-      setTimeout(() => {
-        window.location.href = `/payment-return?session_id=${sessionId}`;
-      }, 300);
-    }
-  }, [dispatch]);
+  }, []);
 
   return (
     <BrowserRouter>
-      {/* Detector de pagos */}
-      <PaymentDetector />
-      
       <Routes>
         <Route path="/admin" element={<PrivateAdminRoute><AdminModule /></PrivateAdminRoute>}>
           <Route index element={<Dashboard />} />
