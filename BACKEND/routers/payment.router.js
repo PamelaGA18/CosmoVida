@@ -1,11 +1,14 @@
 const express = require("express");
-const { authenticate } = require("../auth/auth.middleware");
-const { createCheckoutSession, sessionStatus } = require("../controllers/payment.controller");
+const { authenticate, isAdmin } = require("../auth/auth.middleware");
+const { createCheckoutSesion, sessionStatus } = require("../controllers/payment.controller");
 
 const router = express.Router();
 
-router.post('/create-session', authenticate, createCheckoutSession);
 
-router.get("/session-status", authenticate, sessionStatus);
+router.get('/create-session', authenticate,  createCheckoutSesion);
+
+router.get("/session-status", authenticate,  sessionStatus);
+
+
 
 module.exports = router;
