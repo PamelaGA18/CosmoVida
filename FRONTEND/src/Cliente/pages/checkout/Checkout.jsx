@@ -1,7 +1,7 @@
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import axios from "axios";
-import { useCallback } from "react";
+import { useCallback, useState } from "react"; // Añadido useState
 import { baseUrl } from "../../../environment";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -11,13 +11,15 @@ const stripePromise = loadStripe(process.env.REACT_APP_STRIPE_PUBLISHABLE_KEY ||
 export default function Checkout() {
     const { token } = useSelector((state) => state.auth.userData || {});
     const navigate = useNavigate();
+    const [error, setError] = useState(null); // Estado para manejar errores
 
     const fetchClientSecret = useCallback(() => {
         console.log("🔄 Solicitando client secret...");
         
         if (!token) {
-            console.error("❌ No hay token disponible");
-            throw new Error("No estás autenticado. Por favor inicia sesión.");
+            const errorMsg = "No estás autenticado. Por favor inicia sesión.";
+            setError(errorMsg);
+            throw new Error(errorMsg);
         }
         
         return axios.post(
@@ -28,7 +30,7 @@ export default function Checkout() {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 },
-                timeout: 15000 // 15 segundos timeout
+                timeout: 15000
             }
         )
         .then(resp => {
@@ -45,9 +47,12 @@ export default function Checkout() {
                     console.log("💾 SessionId guardado:", resp.data.sessionId);
                 }
                 
+                setError(null); // Limpiar error si hay éxito
                 return resp.data.clientSecret;
             } else {
-                throw new Error(resp.data.message || "No se pudo obtener clientSecret");
+                const errorMsg = resp.data.message || "No se pudo obtener clientSecret";
+                setError(errorMsg);
+                throw new Error(errorMsg);
             }
         })
         .catch(e => {
@@ -58,38 +63,36 @@ export default function Checkout() {
                 code: e.code
             });
             
-            // Mensaje de error más amigable
+            // Manejar diferentes tipos de errores
+            let errorMessage = "Error al conectar con el servicio de pagos. Intenta más tarde.";
+            
             if (e.response?.status === 401) {
-                throw new Error("Tu sesión ha expirado. Por favor inicia sesión nuevamente.");
+                errorMessage = "Tu sesión ha expirado. Por favor inicia sesión nuevamente.";
             } else if (e.response?.data?.error) {
-                throw new Error(`Error del servidor: ${e.response.data.error}`);
+                errorMessage = `Error del servidor: ${e.response.data.error}`;
             } else if (e.code === 'ECONNABORTED') {
-                throw new Error("El servidor tardó demasiado en responder. Intenta nuevamente.");
+                errorMessage = "El servidor tardó demasiado en responder. Intenta nuevamente.";
+            } else if (e.message) {
+                errorMessage = e.message;
             }
             
-            throw new Error("Error al conectar con el servicio de pagos. Intenta más tarde.");
+            setError(errorMessage);
+            throw new Error(errorMessage);
         });
     }, [token]);
 
+    // CORRECCIÓN: onError NO es válido para EmbeddedCheckoutProvider
+    // Usa solo fetchClientSecret y onComplete
     const options = { 
         fetchClientSecret,
-        onComplete: (result) => {
-            console.log("🎉 Checkout completado:", result);
-            
-            // Obtener sessionId de localStorage o de result
+        onComplete: () => {
+            console.log("🎉 Checkout completado");
             const sessionId = localStorage.getItem('stripe_session_id');
             if (sessionId) {
                 navigate(`/payment-return?session_id=${sessionId}`);
-            } else if (result?.session?.id) {
-                navigate(`/payment-return?session_id=${result.session.id}`);
             } else {
                 navigate('/payment-return');
             }
-        },
-        onError: (error) => {
-            console.error("🚨 Error en el proceso de pago:", error);
-            // Podrías mostrar un modal o mensaje de error aquí
-            alert(`Error en el proceso de pago: ${error.message}`);
         }
     };
 
@@ -97,6 +100,20 @@ export default function Checkout() {
         <div id="checkout" className="container mx-auto px-4 py-8">
             <div className="max-w-6xl mx-auto">
                 <h2 className="text-2xl font-bold mb-6 text-gray-800">Proceso de Pago</h2>
+                
+                {/* Mostrar mensaje de error si existe */}
+                {error && (
+                    <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-red-700 font-medium">Error: {error}</p>
+                        <button
+                            onClick={() => window.location.reload()}
+                            className="mt-2 text-sm text-red-600 hover:text-red-800 underline"
+                        >
+                            Reintentar
+                        </button>
+                    </div>
+                )}
+                
                 <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4 min-h-[500px]">
                     <div className="mb-4">
                         <p className="text-gray-600">
@@ -113,7 +130,8 @@ export default function Checkout() {
                     
                     <div className="mt-6 pt-6 border-t border-gray-100">
                         <p className="text-sm text-gray-500">
-                            <span className="font-semibold">Seguridad garantizada:</span> Tus datos de pago están encriptados y nunca se almacenan en nuestros servidores.
+                            <span className="font-semibold">Seguridad garantizada:</span> 
+                            Tus datos de pago están encriptados y nunca se almacenan en nuestros servidores.
                         </p>
                     </div>
                 </div>
