@@ -71,7 +71,8 @@ module.exports = {
                 ui_mode: 'embedded',
                 line_items: lineItems,
                 mode: 'payment',
-                return_url: `${FRONTEND_URL}/payment-return`,
+                success_url: `${FRONTEND_URL}/payment-return?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${FRONTEND_URL}/cart`,
                 metadata: {
                     userId: userId.toString(),
                     cartId: cart._id.toString(),
