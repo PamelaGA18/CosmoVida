@@ -3,6 +3,9 @@ const User = require("../models/user.model");
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+// ✅ VARIABLE DINÁMICA PARA BACKEND URL
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:5000';
+
 // CONTROLADORES
 const register = async (req, res) => {
     try {
@@ -41,12 +44,12 @@ const login = async (req, res) => {
             process.env.JWT_SECRET
         );
 
-        // ✅ CORRECCIÓN: Misma lógica para construir URL
+        // ✅ CORRECCIÓN COMPLETA: Usar BACKEND_URL variable
         let imageUrl = "";
         if (user.imageUrl) {
             imageUrl = user.imageUrl.startsWith('http')
                 ? user.imageUrl
-                : `${process.env.BACKEND_URL || 'http://localhost:5000'}/uploads/${user.imageUrl}`;
+                : `${BACKEND_URL}/uploads/${user.imageUrl}`;
         }
 
         res.header("Authorization", token).status(200).json({
@@ -96,12 +99,12 @@ const getProfile = async (req, res) => {
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ success: false, message: "Usuario no encontrado." });
 
-        // ✅ CORRECCIÓN: Construir URL completa también aquí
+        // ✅ CORRECCIÓN COMPLETA: Usar BACKEND_URL variable
         let imageUrl = "";
         if (user.imageUrl) {
             imageUrl = user.imageUrl.startsWith('http')
                 ? user.imageUrl
-                : `http://localhost:5000/uploads/${user.imageUrl}`;
+                : `${BACKEND_URL}/uploads/${user.imageUrl}`;
         }
 
         res.status(200).json({
@@ -135,14 +138,12 @@ const updateProfile = async (req, res) => {
 
         await user.save();
 
-        // ✅ CORRECCIÓN: Siempre construir URL completa
+        // ✅ CORRECCIÓN COMPLETA: Usar BACKEND_URL variable
         let imageUrl = "";
         if (user.imageUrl) {
-            // Si ya es una URL completa (empieza con http), usarla directamente
-            // Si es solo el nombre del archivo, construir la URL completa
             imageUrl = user.imageUrl.startsWith('http')
                 ? user.imageUrl
-                : `http://localhost:5000/uploads/${user.imageUrl}`;
+                : `${BACKEND_URL}/uploads/${user.imageUrl}`;
         }
 
         const userData = {
@@ -161,7 +162,6 @@ const updateProfile = async (req, res) => {
         res.status(500).json({ success: false, message: "Error al actualizar perfil" });
     }
 };
-
 
 module.exports = {
     register,
