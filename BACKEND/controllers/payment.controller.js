@@ -3,16 +3,18 @@ const Cart = require("../models/cart.model");
 const Order = require("../models/order.model")
 const stripe = require('stripe')(process.env.STRIPE_SECRET)
 
-
 module.exports = {
-
     createCheckoutSesion: async (req, res) => {
         try {
-            const YOUR_DOMAIN = 'http://localhost:3000';
+            //  CORRECCIÓN: URL dinámica del frontend
+            const YOUR_DOMAIN = process.env.FRONTEND_URL || 'http://localhost:3000';
 
             const userId = req.user.id;
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
-            if (!cart) { return res.status(404).json({ success: false, message: "Cart is not there." }) }
+            if (!cart) { 
+                return res.status(404).json({ success: false, message: "Cart is not there." }) 
+            }
+            
             const lineItems = cart.products.map((x) => {
                 return {
                     price_data: {
@@ -28,6 +30,7 @@ module.exports = {
                     quantity: x.quantity
                 }
             })
+            
             const session = await stripe.checkout.sessions.create({
                 ui_mode: 'embedded',
                 line_items: lineItems,
@@ -35,11 +38,19 @@ module.exports = {
                 return_url: `${YOUR_DOMAIN}/return?session_id={CHECKOUT_SESSION_ID}&user_id=${userId}`
             });
 
-            res.send({ clientSecret: session.client_secret });
+            //  Asegúrate de enviar la respuesta correctamente
+            res.json({ 
+                success: true, 
+                clientSecret: session.client_secret 
+            });
         } catch (error) {
-            console.log(error)
+            console.log("Error creating checkout session:", error)
+            res.status(500).json({ 
+                success: false, 
+                message: "Error creating checkout session",
+                error: error.message 
+            });
         }
-
     },
     sessionStatus: async (req, res) => {
         try {
@@ -49,26 +60,31 @@ module.exports = {
             const userId = req.user.id;
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
             if (!cart) {
-                return res.status(404).json({ success: true, message: "Cart not fouynd." })
+                return res.status(404).json({ success: false, message: "Cart not found." })
             }
             const totalPrice = cart.products.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
-            const newOrder = new Order({ user: userId, products: cart.products, totalPrice, paymentId, paymentStatus: session.status });
+            const newOrder = new Order({ 
+                user: userId, 
+                products: cart.products, 
+                totalPrice, 
+                paymentId, 
+                paymentStatus: session.status 
+            });
             await newOrder.save();
 
             await Cart.findOneAndDelete({ user: req.user.id })
 
-
-            res.send({
+            res.json({
+                success: true,
                 status: session.payment_status,
                 customer_email: session.customer_details.email
             });
         } catch (error) {
-            console.log(error)
-            res.status(500).json({ success: false, message: "Error in setting session." })
+            console.log("Error in session status:", error)
+            res.status(500).json({ 
+                success: false, 
+                message: "Error in setting session." 
+            })
         }
-
     }
 }
-
-
-
