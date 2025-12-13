@@ -1,36 +1,41 @@
-require('dotenv').config()
+require('dotenv').config();
 const Cart = require("../models/cart.model");
-const Order = require("../models/order.model")
-const stripe = require('stripe')(process.env.STRIPE_SECRET)
+const Order = require("../models/order.model");
+const stripe = require('stripe')(process.env.STRIPE_SECRET);
 
 module.exports = {
-    createCheckoutSesion: async (req, res) => {
+    createCheckoutSession: async (req, res) => {
         try {
-            //  CORRECCIÓN: URL dinámica del frontend
+            //  CORRECTO: Usar FRONTEND_URL dinámica
             const YOUR_DOMAIN = process.env.FRONTEND_URL || 'http://localhost:3000';
 
             const userId = req.user.id;
             const cart = await Cart.findOne({ user: userId }).populate("products.product");
-            if (!cart) { 
-                return res.status(404).json({ success: false, message: "Cart is not there." }) 
-            }
             
+            if (!cart || cart.products.length === 0) { 
+                return res.status(404).json({ 
+                    success: false, 
+                    message: "Carrito vacío o no encontrado." 
+                }); 
+            }
+
             const lineItems = cart.products.map((x) => {
                 return {
                     price_data: {
                         currency: 'mxn',
-                        unit_amount: +x.product.price * 100,
+                        unit_amount: Math.round(x.product.price * 100), // Stripe usa centavos
                         product_data: {
                             name: x.product.name,
-                            description: x.product.short_desc,
-                            //images: x.product.images,
-                            images: []
+                            description: x.product.short_desc || x.product.description || '',
+                            images: x.product.images && x.product.images.length > 0 
+                                ? x.product.images 
+                                : [],
                         }
                     },
                     quantity: x.quantity
-                }
-            })
-            
+                };
+            });
+
             const session = await stripe.checkout.sessions.create({
                 ui_mode: 'embedded',
                 line_items: lineItems,
@@ -38,53 +43,94 @@ module.exports = {
                 return_url: `${YOUR_DOMAIN}/return?session_id={CHECKOUT_SESSION_ID}&user_id=${userId}`
             });
 
-            //  Asegúrate de enviar la respuesta correctamente
+            //  IMPORTANTE: Guardar sessionId temporalmente si es necesario
+            await Cart.findOneAndUpdate(
+                { user: userId },
+                { $set: { stripeSessionId: session.id } },
+                { new: true }
+            );
+
+            console.log(" Session creada:", session.id);
+            
             res.json({ 
                 success: true, 
-                clientSecret: session.client_secret 
+                clientSecret: session.client_secret,
+                sessionId: session.id
             });
+            
         } catch (error) {
-            console.log("Error creating checkout session:", error)
+            console.error(" Error en createCheckoutSession:", error);
             res.status(500).json({ 
                 success: false, 
-                message: "Error creating checkout session",
+                message: "Error creando sesión de pago",
                 error: error.message 
             });
         }
     },
+
     sessionStatus: async (req, res) => {
         try {
-            const session = await stripe.checkout.sessions.retrieve(req.query.session_id);
-
-            const paymentId = req.query.session_id
-            const userId = req.user.id;
-            const cart = await Cart.findOne({ user: userId }).populate("products.product");
-            if (!cart) {
-                return res.status(404).json({ success: false, message: "Cart not found." })
+            const sessionId = req.query.session_id;
+            const userId = req.query.user_id || req.user?.id;
+            
+            if (!sessionId) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "session_id es requerido" 
+                });
             }
-            const totalPrice = cart.products.reduce((sum, item) => sum + item.product.price * item.quantity, 0)
-            const newOrder = new Order({ 
-                user: userId, 
-                products: cart.products, 
-                totalPrice, 
-                paymentId, 
-                paymentStatus: session.status 
-            });
-            await newOrder.save();
 
-            await Cart.findOneAndDelete({ user: req.user.id })
+            const session = await stripe.checkout.sessions.retrieve(sessionId);
+
+            // Buscar carrito del usuario
+            const cart = await Cart.findOne({ user: userId }).populate("products.product");
+            
+            if (!cart) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: "Carrito no encontrado." 
+                });
+            }
+
+            // Calcular total
+            const totalPrice = cart.products.reduce((sum, item) => 
+                sum + (item.product.price * item.quantity), 0
+            );
+
+            // Verificar si la orden ya existe
+            const existingOrder = await Order.findOne({ paymentId: sessionId });
+            
+            if (!existingOrder) {
+                // Crear nueva orden solo si no existe
+                const newOrder = new Order({ 
+                    user: userId, 
+                    products: cart.products, 
+                    totalPrice, 
+                    paymentId: sessionId, 
+                    paymentStatus: session.payment_status,
+                    customerEmail: session.customer_details?.email || ''
+                });
+                await newOrder.save();
+
+                // Limpiar carrito solo si el pago fue exitoso
+                if (session.payment_status === 'paid') {
+                    await Cart.findOneAndDelete({ user: userId });
+                }
+            }
 
             res.json({
                 success: true,
                 status: session.payment_status,
-                customer_email: session.customer_details.email
+                customer_email: session.customer_details?.email || ''
             });
+            
         } catch (error) {
-            console.log("Error in session status:", error)
+            console.error(" Error en sessionStatus:", error);
             res.status(500).json({ 
                 success: false, 
-                message: "Error in setting session." 
-            })
+                message: "Error verificando estado de sesión",
+                error: error.message 
+            });
         }
     }
-}
+};

@@ -20,6 +20,23 @@ app.use(cors(corsOption));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }))
 
+// Agrega estas rutas al principio, después de los middlewares:
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ 
+        status: 'OK', 
+        message: 'CosmoVida API funcionando',
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/test-upload', (req, res) => {
+    res.json({ 
+        message: 'Uploads directory test',
+        uploadsPath: path.join(process.cwd(), 'uploads')
+    });
+});
+
 // CONNECTING TO MONGODB
 mongoose.connect(process.env.MONGO_URL).then((res) => {
     console.log("MongoDB está conectado.")
