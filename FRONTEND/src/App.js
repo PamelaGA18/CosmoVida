@@ -29,7 +29,7 @@ import { updateTotal } from './state/cartSlice';
 import PaymentReturn from './Cliente/pages/payment-return/PaymentReturn';
 import ProductDetails from './Cliente/pages/ProductDetails/ProductDetails';
 import Profile from './Cliente/pages/profile/Profile';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import {Navigate } from 'react-router-dom';
 
 function App() {
 
