@@ -55,7 +55,7 @@ export default function Checkout() {
         onComplete: (result) => {
             console.log(" Checkout completado:", result);
             // Redirigir a la página de retorno
-            navigate('/return');
+            navigate('/payment-return');
         }
     };
 
